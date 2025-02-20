@@ -62,7 +62,7 @@ public class ActivityTypeController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = Permissions.ActivityTypes.View)]
-    public async Task<IActionResult> GetAllActivityTypes([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
+    public async Task<IActionResult> GetAllActivityTypes([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 5, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
     {
         var query = new GetAllActivityTypesQuery(pageNumber, pageSize, orderBy, filter);
         var result = await _mediator.Send(query);
@@ -71,7 +71,7 @@ public class ActivityTypeController(IMediator mediator) : ControllerBase
 
     [HttpGet("worker")]
     [Authorize(Policy = Permissions.ActivityTypes.ViewForWorker)]
-    public async Task<IActionResult> GetAllActivityTypesForWorker([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
+    public async Task<IActionResult> GetAllActivityTypesForWorker([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 5, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
     {
         var query = new GetAllActivityTypesQuery(pageNumber, pageSize, orderBy, filter);
         var result = await _mediator.Send(query);

@@ -72,7 +72,7 @@
 
     async Task LoadData(LoadDataArgs args)
     {
-        int pageSize = args.Top ?? 10;
+        int pageSize = args.Top ?? 5;
         int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
 
         var queryParams = new List<string>

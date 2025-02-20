@@ -24,6 +24,17 @@ public class ActivityController(IMediator mediator) : ControllerBase
         return CreatedAtAction(nameof(GetActivityById), new { id = result.Data }, result);
     }
 
+    [HttpPost("worker")]
+    [Authorize(Policy = Permissions.Activities.CreateForWorker)]
+    public async Task<IActionResult> CreateActivityWorker(CreateActivityCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (!result.Succeeded)
+            return BadRequest(result);
+
+        return CreatedAtAction(nameof(GetActivityById), new { id = result.Data }, result);
+    }
+
     [HttpPut("{id}")]
     [Authorize(Policy = Permissions.Activities.Edit)]
     public async Task<IActionResult> UpdateActivity(Ulid id, UpdateActivityCommand command)
@@ -58,7 +69,7 @@ public class ActivityController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = Permissions.Activities.View)]
-    public async Task<IActionResult> GetAllActivities([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
+    public async Task<IActionResult> GetAllActivities([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 5, [FromQuery] string? orderBy = null, [FromQuery] string? filter = null)
     {
         var query = new GetAllActivitiesQuery(pageNumber, pageSize, orderBy, filter);
         var result = await _mediator.Send(query);

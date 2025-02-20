@@ -67,9 +67,10 @@ public class ActivityApiClient(HttpClient httpClient,
         return apiResponse?.Data;
     }
 
-    public async Task<string?> CreateActivityAsync(ActivityViewModel activity)
+    public async Task<string?> CreateActivityAsync(ActivityViewModel activity, bool isWorker = false)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "api/activities")
+        string route = isWorker ? "api/activities/worker" : "api/activities";
+        var request = new HttpRequestMessage(HttpMethod.Post, route)
         {
             Content = JsonContent.Create(activity)
         };

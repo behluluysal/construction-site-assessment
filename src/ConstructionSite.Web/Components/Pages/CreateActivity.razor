@@ -125,7 +125,7 @@
 
     async Task LoadActivityTypesData(LoadDataArgs args)
     {
-        int pageSize = args.Top ?? 10;
+        int pageSize = args.Top ?? 5;
         int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
 
         var queryParams = new List<string>
@@ -154,7 +154,7 @@
 
     async Task OnSubmit()
     {
-        string? id = await ActivityApiClient.CreateActivityAsync(newActivity);
+        string? id = await ActivityApiClient.CreateActivityAsync(newActivity, true);
         if (!string.IsNullOrEmpty(id))
         {
             Navigation.NavigateTo("/");

@@ -116,7 +116,7 @@
 
     async Task LoadData(LoadDataArgs args)
     {
-        int pageSize = args.Top ?? 10;
+        int pageSize = args.Top ?? 5;
         int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
 
         var queryParams = new List<string>
@@ -161,6 +161,15 @@
         Reset(activity);
 
         await ActivityApiClient.UpdateActivityAsync(activity);
+
+        var usedActivityType = activityTypes?.Where(x => x.Id == activity.ActivityTypeId).FirstOrDefault();
+        activitiesToInsert.Remove(activity);
+        if (usedActivityType != null)
+        {
+            activity.ActivityType = usedActivityType;
+        }
+        else
+            await dataGrid.Reload();
     }
 
     async Task SaveRow(ActivityViewModel activity)
@@ -249,7 +258,7 @@
 
     private async Task LoadActivityTypesData(LoadDataArgs args)
     {
-        int pageSize = args.Top ?? 10;
+        int pageSize = args.Top ?? 5;
         int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
 
         var queryParams = new List<string>
@@ -279,7 +288,7 @@
 
     private async Task LoadUsersData(LoadDataArgs args)
     {
-        int pageSize = args.Top ?? 10;
+        int pageSize = args.Top ?? 5;
         int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
 
         var queryParams = new List<string>
