@@ -1,0 +1,194 @@
+﻿@page "/activity-types"
+@using ConstructionSite.Web.Client
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+@inject ActivityApiClient ActivityApiClient
+@inject DialogService DialogService
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Activities.View")]
+
+<h3>Activity Types</h3>
+
+<RadzenButton Icon="add_circle_outline" Click="@InsertRow" Style="margin-top:10px;" ButtonStyle="ButtonStyle.Primary" Text="New Activity Type" />
+
+<br />
+
+<RadzenDataGrid @ref="dataGrid" TItem="ActivityTypeViewModel" Data="@activityTypes"
+                EditMode="DataGridEditMode.Single"
+                AllowFiltering="true" AllowPaging="true" AllowSorting="true"
+                FilterMode="FilterMode.Advanced"
+                LogicalFilterOperator="LogicalFilterOperator.Or"
+                LoadData="@LoadData" Count="@totalCount" PageSize="5" PagerAlwaysVisible="true"
+                Responsive="true"
+                RowUpdate="@OnUpdateRowAsync"
+                RowCreate="@OnCreateRowAsync">
+    <Columns>
+        <RadzenDataGridColumn TItem="ActivityTypeViewModel" Property="Id" Title="Id" Width="280px" MinWidth="280px">
+            <EditTemplate Context="activityType">
+                @if (activityTypesToInsert.Any(x => x.Id == activityType.Id))
+                {
+                    <span></span>
+                }
+                else
+                {
+                    <span>@activityType.Id</span>
+                }
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="ActivityTypeViewModel" Property="Name" Title="Activity Type Name">
+            <EditTemplate Context="activityType">
+                <RadzenTextBox @bind-Value="activityType.Name" Name="Name" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Component="Name" Popup="true" Text="Activity Type Name is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="ActivityTypeViewModel" Title="Actions" Sortable="false" Filterable="false" FrozenPosition="FrozenColumnPosition.Right" Width="110px" MinWidth="110px" OrderIndex="99">
+            <Template Context="activityType">
+                <RadzenButton Icon="edit" Click="@(() => EditRow(activityType))" ButtonStyle="ButtonStyle.Primary" />
+                <RadzenButton Icon="delete" Click="@(() => DeleteRow(activityType))" ButtonStyle="ButtonStyle.Danger" Style="margin-left:5px;" />
+            </Template>
+            <EditTemplate Context="activityType">
+                <RadzenButton Icon="save" Click="@(() => SaveRow(activityType))" ButtonStyle="ButtonStyle.Success" />
+                <RadzenButton Icon="cancel" Click="@(() => CancelEdit(activityType))" ButtonStyle="ButtonStyle.Light" Style="margin-left:5px;" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<ActivityTypeViewModel> dataGrid = default!;
+    List<ActivityTypeViewModel> activityTypes = new();
+    List<ActivityTypeViewModel> activityTypesToInsert = new();
+    List<ActivityTypeViewModel> activityTypesToUpdate = new();
+    ActivityTypeViewModel? previousData;
+    int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData(new());
+    }
+
+    async Task LoadData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+        if (!string.IsNullOrEmpty(args.Filter))
+        {
+            queryParams.Add($"filter={Uri.EscapeDataString(args.Filter)}");
+        }
+
+        string queryString = string.Join("&", queryParams);
+
+        var result = await ActivityApiClient.GetActivityTypesAsync(queryString);
+        if (result != null)
+        {
+            activityTypes = result.ActivityTypes;
+            totalCount = result.TotalCount;
+        }
+    }
+
+    async Task EditRow(ActivityTypeViewModel activityType)
+    {
+        if (!dataGrid.IsValid) return;
+        if (activityTypesToInsert.Count > 0)
+        {
+            Reset();
+        }
+        DeepCloneData(activityType);
+        activityTypesToUpdate.Add(activityType);
+        await dataGrid.EditRow(activityType);
+    }
+
+    async Task OnUpdateRowAsync(ActivityTypeViewModel activityType)
+    {
+        Reset(activityType);
+
+        await ActivityApiClient.UpdateActivityTypeAsync(activityType);
+    }
+
+    async Task SaveRow(ActivityTypeViewModel activityType)
+    {
+        await dataGrid.UpdateRow(activityType);
+    }
+
+    void CancelEdit(ActivityTypeViewModel activityType)
+    {
+        Reset(activityType);
+        dataGrid.CancelEditRow(activityType);
+        DeepCloneFromSavedData(activityType);
+    }
+
+    async Task DeleteRow(ActivityTypeViewModel activityType)
+    {
+        Reset(activityType);
+        bool? confirmed = await DialogService.Confirm("Are you sure you want to delete this activity type?", "Delete Activity Type");
+        if (confirmed == true)
+        {
+            await ActivityApiClient.DeleteActivityTypeAsync(activityType.Id);
+            await dataGrid.Reload();
+        }
+        if(activityTypes.Count == 0)
+            dataGrid.ShowEmptyMessage = true;
+    }
+
+    async Task InsertRow()
+    {
+        if (!dataGrid.IsValid) return;
+        var newActivityType = new ActivityTypeViewModel();
+        activityTypesToInsert.Add(newActivityType);
+        await dataGrid.InsertRow(newActivityType);
+        dataGrid.ShowEmptyMessage = false;
+    }
+
+    async Task OnCreateRowAsync(ActivityTypeViewModel activityType)
+    {
+        string? id = await ActivityApiClient.CreateActivityTypeAsync(activityType);
+        activityTypesToInsert.Remove(activityType);
+        if (!string.IsNullOrEmpty(id))
+            activityType.Id = id;
+        else
+            await dataGrid.Reload();
+    }
+
+    void Reset()
+    {
+        activityTypesToInsert.Clear();
+        activityTypesToUpdate.Clear();
+    }
+
+    void Reset(ActivityTypeViewModel activityType)
+    {
+        activityTypesToInsert.Remove(activityType);
+        activityTypesToUpdate.Remove(activityType);
+    }
+
+    void DeepCloneData(ActivityTypeViewModel activityType)
+    {
+        previousData = new ActivityTypeViewModel
+            {
+                Id = activityType.Id,
+                Name = activityType.Name,
+            };
+    }
+    void DeepCloneFromSavedData(ActivityTypeViewModel activityType)
+    {
+        if (previousData == null) return;
+
+        activityType.Id = previousData.Id;
+        activityType.Name = previousData.Name;
+        previousData = null;
+    }
+}

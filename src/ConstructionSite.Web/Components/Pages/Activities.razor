@@ -1,0 +1,312 @@
+﻿@page "/activities"
+@using ConstructionSite.Web.Client
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+@inject ActivityApiClient ActivityApiClient
+@inject AuthenticationApiClient AuthenticationApiClient
+@inject DialogService DialogService
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Activities.View")]
+
+<h3>Activities</h3>
+
+<RadzenButton Icon="add_circle_outline" Click="@InsertRow" Style="margin-top:10px;" ButtonStyle="ButtonStyle.Primary" Text="New Activity" />
+
+<br />
+
+<RadzenDataGrid @ref="dataGrid" TItem="ActivityViewModel" Data="@activities"
+                EditMode="DataGridEditMode.Single"
+                AllowFiltering="true" AllowPaging="true" AllowSorting="true"
+                FilterMode="FilterMode.Advanced"
+                LogicalFilterOperator="LogicalFilterOperator.Or"
+                LoadData="@LoadData" Count="@totalCount" PageSize="5" PagerAlwaysVisible="true"
+                Responsive="true"
+                RowUpdate="@OnUpdateRowAsync"
+                RowCreate="@OnCreateRowAsync">
+    <Columns>
+        <RadzenDataGridColumn TItem="ActivityViewModel" Property="Id" Title="Id" Width="280px" MinWidth="280px">
+            <EditTemplate Context="activity">
+                @if (activitiesToInsert.Any(x => x.Id == activity.Id))
+                {
+                    <span></span>
+                }
+                else
+                {
+                    <span>@activity.Id</span>
+                }
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ActivityViewModel" Property="ActivityType.Name" Title="Activity Type">
+            <Template Context="activity">
+                <MudBlazor.MudChip T="string" Variant="MudBlazor.Variant.Text" Text="@activity?.ActivityType?.Name"></MudBlazor.MudChip>
+            </Template>
+            <EditTemplate Context="activity">
+                <RadzenDropDownDataGrid @bind-Value="activity.ActivityTypeId" Count="@activityTypesCount" Data="@activityTypes" LoadData="@LoadActivityTypesData"
+                ValueProperty="Id" AllowFiltering="true" AllowSorting="false" Style="width:100%; display: block;" Name="ActivityType">
+                    <Template>
+                        <MudBlazor.MudChip T="string" Variant="MudBlazor.Variant.Text" Text="@context.Name"></MudBlazor.MudChip>
+                    </Template>
+                </RadzenDropDownDataGrid>
+                <RadzenRequiredValidator Component="ActivityType" Popup="true" Text="Activity Type is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="ActivityViewModel" Property="Description" Title="Description">
+            <EditTemplate Context="activity">
+                <RadzenTextBox @bind-Value="activity.Description" Name="Description" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Component="Description" Popup="true" Text="Description is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="ActivityViewModel" Property="Worker" Title="Worker">
+            <Template Context="activity">
+                <MudBlazor.MudChip T="string" Variant="MudBlazor.Variant.Text" Text="@activity?.Worker"></MudBlazor.MudChip>
+            </Template>
+            <EditTemplate Context="activity">
+                <RadzenDropDownDataGrid @bind-Value="activity.Worker" Count="@usersCount" Data="@users" LoadData="@LoadUsersData"
+                ValueProperty="FullName" AllowFiltering="true" AllowSorting="false" Style="width:100%; display: block;" Name="Worker">
+                    <Template Context="user">
+                        <MudBlazor.MudChip T="string" Variant="MudBlazor.Variant.Text" Text="@($"{user.FullName}")"></MudBlazor.MudChip>
+                    </Template>
+                </RadzenDropDownDataGrid>
+                <RadzenRequiredValidator Component="Worker" Popup="true" Text="Worker is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+
+        <RadzenDataGridColumn TItem="ActivityViewModel" Property="ActivityDate" Title="Date">
+            <EditTemplate Context="activity">
+                <RadzenDatePicker @bind-Value="activity.ActivityDate" Style="width: 100%;" />
+                <RadzenRequiredValidator Popup="true" Text="Date is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="ActivityViewModel" Title="Actions" Sortable="false" Filterable="false" FrozenPosition="FrozenColumnPosition.Right" Width="110px" MinWidth="110px" OrderIndex="99">
+            <Template Context="activity">
+                <RadzenButton Icon="edit" Click="@(() => EditRow(activity))" ButtonStyle="ButtonStyle.Primary" />
+                <RadzenButton Icon="delete" Click="@(() => DeleteRow(activity))" ButtonStyle="ButtonStyle.Danger" Style="margin-left:5px;" />
+            </Template>
+            <EditTemplate Context="activity">
+                <RadzenButton Icon="save" Click="@(() => SaveRow(activity))" ButtonStyle="ButtonStyle.Success" />
+                <RadzenButton Icon="cancel" Click="@(() => CancelEdit(activity))" ButtonStyle="ButtonStyle.Light" Style="margin-left:5px;" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<ActivityViewModel> dataGrid = default!;
+    List<ActivityViewModel> activities = new();
+    List<ActivityViewModel> activitiesToInsert = new();
+    List<ActivityViewModel> activitiesToUpdate = new();
+    ActivityViewModel? previousData;
+    int totalCount;
+
+    private List<ActivityTypeViewModel>? activityTypes;
+    private int activityTypesCount = 0;
+
+    private IEnumerable<UserViewModel>? users;
+    private int usersCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData(new());
+    }
+
+    async Task LoadData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+        if (!string.IsNullOrEmpty(args.Filter))
+        {
+            queryParams.Add($"filter={Uri.EscapeDataString(args.Filter)}");
+        }
+
+        string queryString = string.Join("&", queryParams);
+
+        var result = await ActivityApiClient.GetActivitiesAsync(queryString);
+        if (result != null)
+        {
+            activities = result.Activities;
+            totalCount = result.TotalCount;
+        }
+    }
+
+    async Task EditRow(ActivityViewModel activity)
+    {
+        if (!dataGrid.IsValid) return;
+        if (activitiesToInsert.Count > 0)
+        {
+            Reset();
+        }
+        DeepCloneData(activity);
+        activitiesToUpdate.Add(activity);
+        await dataGrid.EditRow(activity);
+    }
+
+    async Task OnUpdateRowAsync(ActivityViewModel activity)
+    {
+        Reset(activity);
+
+        await ActivityApiClient.UpdateActivityAsync(activity);
+    }
+
+    async Task SaveRow(ActivityViewModel activity)
+    {
+        await dataGrid.UpdateRow(activity);
+    }
+
+    void CancelEdit(ActivityViewModel activity)
+    {
+        Reset(activity);
+        dataGrid.CancelEditRow(activity);
+        DeepCloneFromSavedData(activity);
+    }
+
+    async Task DeleteRow(ActivityViewModel activity)
+    {
+        Reset(activity);
+        bool? confirmed = await DialogService.Confirm("Are you sure you want to delete this activity?", "Delete Activity");
+        if (confirmed == true)
+        {
+            await ActivityApiClient.DeleteActivityAsync(activity.Id);
+            await dataGrid.Reload();
+        }
+        if (activities.Count == 0)
+            dataGrid.ShowEmptyMessage = true;
+    }
+
+    async Task InsertRow()
+    {
+        if (!dataGrid.IsValid) return;
+        var newActivity = new ActivityViewModel();
+        activitiesToInsert.Add(newActivity);
+        await dataGrid.InsertRow(newActivity);
+        dataGrid.ShowEmptyMessage = false;
+    }
+
+    async Task OnCreateRowAsync(ActivityViewModel activity)
+    {
+        string? id = await ActivityApiClient.CreateActivityAsync(activity);
+        var usedActivityType = activityTypes?.Where(x => x.Id == activity.ActivityTypeId).FirstOrDefault();
+        activitiesToInsert.Remove(activity);
+        if (!string.IsNullOrEmpty(id) && usedActivityType != null)
+        {
+            activity.Id = id;
+            activity.ActivityType = usedActivityType;
+        }
+        else
+            await dataGrid.Reload();
+    }
+
+    void Reset()
+    {
+        activitiesToInsert.Clear();
+        activitiesToUpdate.Clear();
+    }
+
+    void Reset(ActivityViewModel activity)
+    {
+        activitiesToInsert.Remove(activity);
+        activitiesToUpdate.Remove(activity);
+    }
+
+    void DeepCloneData(ActivityViewModel activity)
+    {
+        previousData = new ActivityViewModel
+            {
+                Id = activity.Id,
+                ActivityTypeId = activity.ActivityTypeId,
+                Description = activity.Description,
+                Worker = activity.Worker,
+                ActivityDate = activity.ActivityDate
+            };
+    }
+
+    void DeepCloneFromSavedData(ActivityViewModel activity)
+    {
+        if (previousData == null) return;
+
+        activity.Id = previousData.Id;
+        activity.ActivityTypeId = previousData.ActivityTypeId;
+        activity.Description = previousData.Description;
+        activity.Worker = previousData.Worker;
+        activity.ActivityDate = previousData.ActivityDate;
+        previousData = null;
+    }
+
+    private async Task LoadActivityTypesData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+        if (!string.IsNullOrEmpty(args.Filter))
+        {
+            queryParams.Add($"filter={Uri.EscapeDataString(args.Filter)}");
+        }
+
+        string queryString = string.Join("&", queryParams);
+
+        var result = await ActivityApiClient.GetActivityTypesAsync(queryString);
+        if (result != null)
+        {
+            activityTypes = result.ActivityTypes;
+            totalCount = result.TotalCount;
+        }
+    }
+
+    private async Task LoadUsersData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+
+        string workerRoleFilter = "UserRoles.Any(Role.Name == \"Worker\")";
+
+        string combinedFilter = !string.IsNullOrEmpty(args.Filter)
+            ? $"({args.Filter}) and ({workerRoleFilter})"
+            : workerRoleFilter;
+        queryParams.Add($"filter={Uri.EscapeDataString(combinedFilter)}");
+
+        string queryString = string.Join("&", queryParams);
+
+        var result = await AuthenticationApiClient.GetWorkersAsync(queryString);
+        if (result != null)
+        {
+            users = result.Users;
+            usersCount = result.TotalCount;
+        }
+    }
+}

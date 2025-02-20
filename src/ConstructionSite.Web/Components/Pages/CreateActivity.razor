@@ -1,0 +1,177 @@
+﻿@page "/create-activity"
+@using System.Security.Claims
+@using ConstructionSite.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using ConstructionSite.Web.Client
+@using Radzen
+@using Radzen.Blazor
+@inject ActivityApiClient ActivityApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject DialogService DialogService
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Permissions.Activities.CreateForWorker)]
+
+<h3>Create Activity</h3>
+
+<RadzenTemplateForm TItem="ActivityViewModel" Data="@newActivity" Submit="@OnSubmit" InvalidSubmit=@OnInvalidSubmit>
+    <RadzenCard Style="max-width: 500px; margin-top: 20px;">
+        <RadzenFieldset Text="Activity Details">
+            <RadzenStack Gap="1rem">
+
+                <RadzenRow AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenLabel Text="Activity Type" Component="ActivityDropdown" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Activity Type" Variant="Variant.Outlined">
+                            <ChildContent>
+                                <RadzenDropDownDataGrid @bind-Value="newActivity.ActivityTypeId"
+                                                        Data="@activityTypes"
+                                                        LoadData="@LoadActivityTypesData"
+                                                        ValueProperty="Id"
+                                                        TextProperty="Name"
+                                                        AllowFiltering="true"
+                                                        AllowSorting="false"
+                                                        Style="width:100%; display: block;"
+                                                        Placeholder="Select Activity Type"
+                                                        Name="ActivityDropdown">
+                                </RadzenDropDownDataGrid>
+                            </ChildContent>
+                            <Helper>
+                                <RadzenRequiredValidator Component="ActivityDropdown" Text="Activity Type is required." />
+                            </Helper>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenLabel Text="Description" Component="Description" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Description" Variant="Variant.Outlined">
+                            <ChildContent>
+                                <RadzenTextBox @bind-Value="newActivity.Description"
+                                               Name="Description"
+                                               Placeholder="Enter Description"
+                                               Style="width:100%" />
+                            </ChildContent>
+                            <Helper>
+                                <RadzenRequiredValidator Component="Description" Text="Description is required." />
+                            </Helper>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenLabel Text="Worker" Component="Worker" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Worker" Variant="Variant.Outlined">
+                            <ChildContent>
+                                <RadzenTextBox @bind-Value="newActivity.Worker"
+                                               Name="Worker"
+                                               Placeholder="Worker Name"
+                                               Style="width:100%"
+                                               Disabled="true" />
+                            </ChildContent>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenLabel Text="Date" Component="ActivityDate" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Date" Variant="Variant.Outlined">
+                            <ChildContent>
+                                <RadzenDatePicker @bind-Value="newActivity.ActivityDate"
+                                                  Style="width: 100%;" Name="ActivityDate" />
+                            </ChildContent>
+                            <Helper>
+                                <RadzenRequiredValidator Component="ActivityDate" Text="Date is required." />
+                            </Helper>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+            </RadzenStack>
+        </RadzenFieldset>
+        <br />
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+            <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="check" Text="Submit" Type="submit" />
+            <RadzenButton ButtonStyle="ButtonStyle.Light" Icon="cancel" Text="Cancel" Click="@Cancel" />
+        </RadzenStack>
+    </RadzenCard>
+</RadzenTemplateForm>
+
+@code {
+    private ActivityViewModel newActivity = new();
+    private List<ActivityTypeViewModel> activityTypes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadActivityTypesData(new());
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        newActivity.Worker = user?.FindFirst("full_name")?.Value ?? "Unknown Worker";
+    }
+
+    async Task LoadActivityTypesData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+        if (!string.IsNullOrEmpty(args.Filter))
+        {
+            queryParams.Add($"filter={Uri.EscapeDataString(args.Filter)}");
+        }
+
+        string queryString = string.Join("&", queryParams);
+        var result = await ActivityApiClient.GetActivityTypesAsync(queryString, true);
+
+        if (result != null)
+        {
+            activityTypes = result.ActivityTypes;
+        }
+    }
+
+    async Task OnSubmit()
+    {
+        string? id = await ActivityApiClient.CreateActivityAsync(newActivity);
+        if (!string.IsNullOrEmpty(id))
+        {
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            await DialogService.Alert("Error creating activity. Please try again.");
+        }
+    }
+
+    void Cancel()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    void OnInvalidSubmit(FormInvalidSubmitEventArgs args)
+    {
+
+    }
+}

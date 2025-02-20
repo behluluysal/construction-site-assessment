@@ -1,0 +1,250 @@
+﻿@page "/users"
+@using ConstructionSite.Web.Client
+@using ConstructionSite.Web.Components.Pages.Auth
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+@inject AuthenticationApiClient AuthenticationApiClient
+@inject DialogService DialogService
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "AdminOnly")]
+
+<h3>Users</h3>
+
+<RadzenButton Icon="add_circle_outline" Click="@InsertRow" Style="margin-top:10px;" ButtonStyle="ButtonStyle.Primary" Text="New User" />
+
+<br />
+
+<RadzenDataGrid @ref="dataGrid" TItem="UserViewModel" Data="@users"
+                EditMode="DataGridEditMode.Single"
+                AllowFiltering="true" AllowPaging="true" AllowSorting="true"
+                FilterMode="FilterMode.Advanced"
+                LogicalFilterOperator="LogicalFilterOperator.Or"
+                LoadData="@LoadData" Count="@totalCount" PageSize="5" PagerAlwaysVisible="true"
+                Responsive="true"
+                RowUpdate="@OnUpdateRowAsync"
+                RowCreate="@OnCreateRowAsync">
+    <Columns>
+        <RadzenDataGridColumn TItem="UserViewModel" Property="Id" Title="Id" Width="280px" MinWidth="280px">
+            <EditTemplate Context="user">
+                @if (usersToInsert.Any(x => x.Id == user.Id))
+                {
+                    <span></span>
+                }
+                else
+                {
+                    <span>@user.Id</span>
+                }
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Property="UserName" Title="Username">
+            <EditTemplate Context="user">
+                <RadzenTextBox @bind-Value="user.UserName" Name="UserName" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Component="UserName" Popup="true" Text="Username is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Property="Email" Title="Email">
+            <EditTemplate Context="user">
+                <RadzenTextBox @bind-Value="user.Email" Name="Email" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Text="Email is required." Popup="true" Component="Email" />
+                <RadzenEmailValidator Text="Email is not valid." Popup="true" Style="display:block" Component="Email" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Property="Name" Title="Name">
+            <EditTemplate Context="user">
+                <RadzenTextBox @bind-Value="user.Name" Name="Name" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Component="Name" Popup="true" Text="Name is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Property="Surname" Title="Surname">
+            <EditTemplate Context="user">
+                <RadzenTextBox @bind-Value="user.Surname" Name="Surname" Style="display: block; width:100%" />
+                <RadzenRequiredValidator Component="Surname" Popup="true" Text="Surname is required." />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Property="Password" Title="Password" Sortable="false" Filterable="false">
+            <Template Context="user">
+                <span>******</span>
+            </Template>
+            <EditTemplate Context="user">
+                @if (string.IsNullOrEmpty(user.Id))
+                {
+                    <RadzenTextBox @bind-Value="user.Password" Name="Password" Type="password" Style="display: block; width:100%" />
+                    <RadzenRequiredValidator Component="Password" Popup="true" Text="Password is required for new users." />
+                }
+                else
+                {
+                    <span>******</span>
+                }
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="UserViewModel" Title="Actions" Sortable="false" Filterable="false" FrozenPosition="FrozenColumnPosition.Right" Width="160px" MinWidth="160px" OrderIndex="99">
+            <Template Context="user">
+                <RadzenButton Icon="edit" Click="@(() => EditRow(user))" ButtonStyle="ButtonStyle.Primary" />
+                <RadzenButton Icon="security" Click="@(() => OpenRolesDialog(user))" ButtonStyle="ButtonStyle.Info" Style="margin-left:5px;" />
+                <RadzenButton Icon="delete" Click="@(() => DeleteRow(user))" ButtonStyle="ButtonStyle.Danger" Style="margin-left:5px;" />
+            </Template>
+            <EditTemplate Context="user">
+                <RadzenButton Icon="save" Click="@(() => SaveRow(user))" ButtonStyle="ButtonStyle.Success" />
+                <RadzenButton Icon="cancel" Click="@(() => CancelEdit(user))" ButtonStyle="ButtonStyle.Light" Style="margin-left:5px;" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<UserViewModel> dataGrid = default!;
+    List<UserViewModel> users = new();
+    List<UserViewModel> usersToInsert = new();
+    List<UserViewModel> usersToUpdate = new();
+    UserViewModel? previousData;
+    int totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData(new());
+    }
+
+    async Task LoadData(LoadDataArgs args)
+    {
+        int pageSize = args.Top ?? 10;
+        int pageNumber = ((args.Skip ?? 0) / pageSize) + 1;
+
+        var queryParams = new List<string>
+        {
+            $"pageNumber={pageNumber}",
+            $"pageSize={pageSize}"
+        };
+
+        if (!string.IsNullOrEmpty(args.OrderBy))
+        {
+            queryParams.Add($"orderBy={Uri.EscapeDataString(args.OrderBy)}");
+        }
+        if (!string.IsNullOrEmpty(args.Filter))
+        {
+            queryParams.Add($"filter={Uri.EscapeDataString(args.Filter)}");
+        }
+
+        string queryString = string.Join("&", queryParams);
+
+        var result = await AuthenticationApiClient.GetUsersAsync(queryString);
+        if (result != null)
+        {
+            users = result.Users;
+            totalCount = result.TotalCount;
+        }
+    }
+
+    async Task EditRow(UserViewModel user)
+    {
+        if (!dataGrid.IsValid) return;
+        if (usersToInsert.Count > 0)
+        {
+            Reset();
+        }
+        DeepCloneData(user);
+        usersToUpdate.Add(user);
+        await dataGrid.EditRow(user);
+    }
+
+    async Task OnUpdateRowAsync(UserViewModel user)
+    {
+        Reset(user);
+
+        await AuthenticationApiClient.UpdateUserAsync(user);
+    }
+
+    async Task SaveRow(UserViewModel user)
+    {
+        await dataGrid.UpdateRow(user);
+    }
+
+    void CancelEdit(UserViewModel user)
+    {
+        Reset(user);
+        dataGrid.CancelEditRow(user);
+        DeepCloneFromSavedData(user);
+    }
+
+    async Task DeleteRow(UserViewModel user)
+    {
+        Reset(user);
+        bool? confirmed = await DialogService.Confirm("Are you sure you want to delete this user?", "Delete User");
+        if (confirmed == true)
+        {
+            await AuthenticationApiClient.DeleteUserAsync(user.Id);
+            await dataGrid.Reload();
+        }
+        if (users.Count == 0)
+            dataGrid.ShowEmptyMessage = true;
+    }
+
+    async Task InsertRow()
+    {
+        if (!dataGrid.IsValid) return;
+        var newUser = new UserViewModel();
+        usersToInsert.Add(newUser);
+        await dataGrid.InsertRow(newUser);
+        dataGrid.ShowEmptyMessage = false;
+    }
+
+    async Task OnCreateRowAsync(UserViewModel user)
+    {
+        string? id = await AuthenticationApiClient.CreateUserAsync(user);
+        usersToInsert.Remove(user);
+        if (!string.IsNullOrEmpty(id))
+            user.Id = id;
+        else
+            await dataGrid.Reload();
+    }
+
+    async Task OpenRolesDialog(UserViewModel user)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            { "UserId", user.Id },
+            { "UserName", user.UserName }
+        };
+
+        await DialogService.OpenAsync<UserRolesDialog>($"Manage Roles For {user.UserName}", parameters);
+    }
+
+    void Reset()
+    {
+        usersToInsert.Clear();
+        usersToUpdate.Clear();
+    }
+
+    void Reset(UserViewModel user)
+    {
+        usersToInsert.Remove(user);
+        usersToUpdate.Remove(user);
+    }
+
+    void DeepCloneData(UserViewModel user)
+    {
+        previousData = new UserViewModel
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                Name = user.Name,
+                Surname = user.Surname,
+            };
+    }
+    void DeepCloneFromSavedData(UserViewModel user)
+    {
+        if (previousData == null) return;
+
+        user.UserName = previousData.UserName;
+        user.Email = previousData.Email;
+        user.Name = previousData.Name;
+        user.Surname = previousData.Surname;
+    }
+}

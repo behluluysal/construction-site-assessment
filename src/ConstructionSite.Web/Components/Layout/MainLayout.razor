@@ -1,0 +1,84 @@
+﻿@using System.Timers
+@using ConstructionSite.Web.Security
+
+@inherits LayoutComponentBase
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<RadzenComponents @rendermode="InteractiveServer" />
+<RadzenDialog @rendermode="InteractiveServer" />
+
+<AuthorizeView>
+    <Authorized Context="authContext">
+        <div class="page">
+            <div class="sidebar">
+                <NavMenu />
+            </div>
+
+            <main>
+                <div class="top-row px-4 d-flex align-items-center justify-content-between">
+                    <div class="user-info">
+                        <MudBlazor.MudText Typo="MudBlazor.Typo.body1" Style="margin-right: 10px;">
+                            <MudBlazor.MudIcon Icon="@MudBlazor.Icons.Material.Filled.Person" />
+                            @userFullName / (@userName)
+                        </MudBlazor.MudText>
+                    </div>
+
+                    <EditForm Model="@Input" OnValidSubmit="Logout" method="post" FormName="logoutForm">
+                        <MudBlazor.MudButton Color="MudBlazor.Color.Secondary"
+                                             ButtonType="MudBlazor.ButtonType.Submit"
+                                             FullWidth="true"
+                                             StartIcon="@MudBlazor.Icons.Material.Filled.Logout"
+                                             Variant="MudBlazor.Variant.Outlined">
+                            Logout
+                        </MudBlazor.MudButton>
+                    </EditForm>
+                </div>
+
+                <article class="content px-4">
+                    @Body
+                </article>
+            </main>
+        </div>
+
+        <div id="blazor-error-ui" data-nosnippet>
+            An unhandled error has occurred.
+            <a href="." class="reload">Reload</a>
+            <span class="dismiss">🗙</span>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <ConstructionSite.Web.Components.Redirections.RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+
+@code {
+
+    private string Input { get; set; } = string.Empty;
+    private string userName = "Guest";
+    private string userFullName = "Guest User";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            userName = user?.FindFirst("unique_name")?.Value ?? "Guest";
+            userFullName = user?.FindFirst("full_name")?.Value ?? "Guest User";
+            StateHasChanged();
+        }
+    }
+
+    private async void Logout()
+    {
+        var authProvider = AuthenticationStateProvider as JwtAuthStateProvider;
+        if (authProvider != null)
+            await authProvider.Logout();
+        NavigationManager.NavigateTo("/login");
+    }
+}

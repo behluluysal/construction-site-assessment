@@ -1,0 +1,46 @@
+﻿@using ConstructionSite.Shared
+@using ConstructionSite.Web.Client
+@inject AuthenticationApiClient AuthenticationApiClient
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+
+<div>
+    @foreach (var claim in availableClaims)
+    {
+        <div class="rz-py-2">
+            <RadzenSwitch Value="@IsClaimAssigned(claim)"
+                          Change="@(async (value) => await ToggleClaim(claim, value))" />
+            <span class="rz-ml-2">@claim</span>
+        </div>
+    }
+</div>
+
+
+@code {
+    [Parameter] public string RoleName { get; set; } = string.Empty;
+
+    private List<string> availableClaims = [.. Permissions.Users.Metrics, .. Permissions.ActivityTypes.Metrics, .. Permissions.Activities.Metrics];
+    private List<string> assignedClaims = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        assignedClaims = await AuthenticationApiClient.GetRoleClaimsAsync(RoleName);
+    }
+
+    private bool IsClaimAssigned(string claim) => assignedClaims.Contains(claim);
+
+    private async Task ToggleClaim(string claim, bool isAssigned)
+    {
+        if (isAssigned)
+        {
+            await AuthenticationApiClient.AssignClaimToRoleAsync(RoleName, claim);
+            assignedClaims.Add(claim);
+        }
+        else
+        {
+            await AuthenticationApiClient.RemoveClaimFromRoleAsync(RoleName, claim);
+            assignedClaims.Remove(claim);
+        }
+    }
+}

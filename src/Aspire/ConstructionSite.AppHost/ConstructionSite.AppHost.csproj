@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>f012dd2f-cbec-4a7e-825c-2851ced0f86c</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ConstructionSite.Web\ConstructionSite.Web.csproj" />
+    <ProjectReference Include="..\..\Services\ActivityService\ConstructionSite.Services.Activity.API\ConstructionSite.Services.Activity.API.csproj" />
+    <ProjectReference Include="..\..\Services\AuthenticationService\ConstructionSite.Services.Authentication.API\ConstructionSite.Services.Authentication.API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.0.0" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.0.0" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

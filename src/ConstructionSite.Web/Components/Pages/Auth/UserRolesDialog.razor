@@ -1,0 +1,112 @@
+﻿@using ConstructionSite.Web.Client
+@inject AuthenticationApiClient AuthenticationApiClient
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+
+<div class="role-container">
+    @if (availableRoles.Any())
+    {
+        @foreach (var role in availableRoles)
+        {
+            <div class="role-item">
+                <div class="role-actions">
+                    <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                  Click="@(() => OpenClaimsDialog(role.Name))" />
+                </div>
+                <div class="role-switch">
+                    <RadzenSwitch Value="@IsRoleSelected(role.Name)"
+                                  Change="@(async (value) => await ToggleRole(role.Name, value))" />
+                </div>
+
+                <div class="role-name">
+                    @role.Name
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="role-empty">
+            No roles available.
+        </div>
+    }
+</div>
+
+<style>
+    .role-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px; /* Spacing between rows */
+        width: 100%;
+    }
+
+    .role-item {
+        display: grid;
+        grid-template-columns: 1fr 1fr 10fr; /* 1:2:9 grid layout */
+        align-items: center;
+        padding: 10px;
+        border: 1px solid var(--rz-primary-color);
+        border-radius: 5px;
+        background-color: var(--rz-secondary-bg);
+    }
+
+    .role-switch {
+        display: flex;
+        justify-content: center;
+    }
+
+    .role-name {
+        padding-left:10px;
+        font-weight: bold;
+    }
+
+    .role-actions {
+        display: flex;
+        justify-content: flex-start;
+    }
+
+</style>
+
+@code {
+    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string UserName { get; set; } = string.Empty;
+
+    private List<RoleData> availableRoles = new();
+    private List<string> selectedRoles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(UserId))
+        {
+            availableRoles = await AuthenticationApiClient.GetAllRolesAsync();
+            selectedRoles = (await AuthenticationApiClient.GetUserRolesAsync(UserId)).ToList();
+        }
+    }
+
+    private bool IsRoleSelected(string roleId) => selectedRoles.Contains(roleId);
+
+    private async Task ToggleRole(string roleId, bool isAssigned)
+    {
+        if (isAssigned)
+        {
+            await AuthenticationApiClient.AssignRoleAsync(UserId, roleId);
+            selectedRoles.Add(roleId);
+        }
+        else
+        {
+            await AuthenticationApiClient.RevokeRoleAsync(UserId, roleId);
+            selectedRoles.Remove(roleId);
+        }
+    }
+
+    private async Task OpenClaimsDialog(string roleName)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            { "RoleName", roleName }
+        };
+
+        await DialogService.OpenAsync<RoleClaimsDialog>($"Manage Claims For {roleName}", parameters);
+    }
+}

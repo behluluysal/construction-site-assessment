@@ -1,0 +1,19 @@
+﻿@using ConstructionSite.Web.Components.Redirections
+@using Microsoft.AspNetCore.Components.Authorization
+@inherits LayoutComponentBase
+
+<RadzenComponents @rendermode="InteractiveServer" />
+<RadzenDialog @rendermode="InteractiveServer" />
+
+<div class="d-flex flex-column mud-width-full">
+    <AuthorizeView>
+        <NotAuthorized>
+            @Body
+        </NotAuthorized>
+        <Authorized>
+            <RedirectToHome />
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+
